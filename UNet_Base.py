@@ -69,7 +69,7 @@ class UNet(nn.Module):
             nn.BatchNorm2d(4),
             nn.ReLU(inplace=True),
         )
-        self.final = nn.Conv2d(64, num_classes, kernel_size=1)
+        self.final = nn.Conv2d(4, num_classes, kernel_size=1)
         initialize_weights(self)
 
     def forward(self, x):
