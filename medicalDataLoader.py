@@ -18,7 +18,7 @@ warnings.filterwarnings("ignore")
 
 
 def make_dataset(root, mode):
-    assert mode in ['train','val', 'test']
+    assert mode in ['train','val', 'test', 'unlabeled']
     items = []
 
     if mode == 'train':
@@ -35,6 +35,16 @@ def make_dataset(root, mode):
             item = (os.path.join(train_img_path, it_im), os.path.join(train_mask_path, it_gt))
             items.append(item)
 
+    # Adding code to load unlabeled images
+    elif mode == 'unlabeled':
+        unlabeled_img_path = os.path.join(root, 'train', 'Img-Unlabeled')
+
+        images = os.listdir(unlabeled_img_path)
+        images.sort()
+
+        for it_im in images:
+            item = (os.path.join(unlabeled_img_path, it_im), None)
+            items.append(item)
 
     elif mode == 'val':
         val_img_path = os.path.join(root, 'val', 'Img')
@@ -103,16 +113,16 @@ class MedicalImageDataset(Dataset):
     def __getitem__(self, index):
         img_path, mask_path = self.imgs[index]
         img = Image.open(img_path)
-        mask = Image.open(mask_path).convert('L')
+        mask = Image.open(mask_path).convert('L') if mask_path else None
 
         if self.equalize:
             img = ImageOps.equalize(img)
 
-        if self.augmentation:
+        if self.augmentation and mask is not None:
             img, mask = self.augment(img, mask)
 
         if self.transform:
             img = self.transform(img)
-            mask = self.mask_transform(mask)
+            mask = self.mask_transform(mask) if mask is not None else None
 
         return [img, mask, img_path]
