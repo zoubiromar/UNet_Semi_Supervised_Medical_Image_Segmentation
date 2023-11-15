@@ -113,7 +113,11 @@ class MedicalImageDataset(Dataset):
     def __getitem__(self, index):
         img_path, mask_path = self.imgs[index]
         img = Image.open(img_path)
-        mask = Image.open(mask_path).convert('L') if mask_path else None
+        if mask_path:
+            mask = Image.open(mask_path).convert('L')
+        else:
+            # Create a dummy mask of the same size as the image
+            mask = Image.new('L', img.size)
 
         if self.equalize:
             img = ImageOps.equalize(img)
@@ -123,6 +127,11 @@ class MedicalImageDataset(Dataset):
 
         if self.transform:
             img = self.transform(img)
-            mask = self.mask_transform(mask) if mask is not None else None
+            if mask is not None:
+                mask = self.mask_transform(mask)
+            else:
+                # Create a dummy mask of the same size as the image
+                dummy_mask = Image.new('L', img.size)
+                mask = self.mask_transform(dummy_mask)
 
         return [img, mask, img_path]
