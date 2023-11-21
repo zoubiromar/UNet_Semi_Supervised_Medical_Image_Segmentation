@@ -1,3 +1,4 @@
 Data/
 models/Test_Model/
 __pycache__/
+.DS_Store
