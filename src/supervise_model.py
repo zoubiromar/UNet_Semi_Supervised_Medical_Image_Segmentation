@@ -22,8 +22,6 @@ stream_handler.setFormatter(formatter)
 
 logger.addHandler(stream_handler)
 
-logger.info(f'logger level : {logging.DEBUG}')
-
 warnings.filterwarnings("ignore")
 
 PRINT_EVERY_N_EPOCH = 1
