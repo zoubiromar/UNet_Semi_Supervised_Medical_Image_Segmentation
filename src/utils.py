@@ -177,7 +177,7 @@ def loadData(mode, batchSize, rootDir='./Data', _augment=False, _shuffle=False, 
     return loader
 
 
-def initModel(numberOfClasses, weights_path, modelName="Test"):
+def initModel(numberOfClasses, weights_path='', modelName="Test"):
     # INITIALIZE YOUR MODEL
     logger.info(f" Model Name: {modelName}")
 
