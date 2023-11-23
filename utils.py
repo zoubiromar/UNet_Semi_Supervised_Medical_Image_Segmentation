@@ -1,3 +1,4 @@
+from scipy import ndimage
 import numpy as np
 import torch
 import torch.nn as nn
@@ -37,7 +38,8 @@ def computeDSC(pred, gt):
 
 def getImageImageList(imagesFolder):
     if os.path.exists(imagesFolder):
-        imageNames = [f for f in os.listdir(imagesFolder) if isfile(join(imagesFolder, f))]
+        imageNames = [f for f in os.listdir(
+            imagesFolder) if isfile(join(imagesFolder, f))]
 
     imageNames.sort()
 
@@ -71,30 +73,34 @@ def getTargetSegmentation(batch):
     return (batch / denom).round().long().squeeze()
 
 
-from scipy import ndimage
-
-
-def inference(net, img_batch, modelName, epoch):
+def inference(net, img_batch, modelName, epoch, loss_function):
     total = len(img_batch)
     net.eval()
 
     softMax = nn.Softmax().cuda()
     CE_loss = nn.CrossEntropyLoss().cuda()
+    DiceLossV2Train = DiceLossV2(n_classes=4).cuda()
 
     losses = []
     for i, data in enumerate(img_batch):
 
-        printProgressBar(i, total, prefix="[Inference] Getting segmentations...", length=30)
+        printProgressBar(
+            i, total, prefix="[Inference] Getting segmentations...", length=30)
         images, labels, img_names = data
 
         images = to_var(images)
         labels = to_var(labels)
 
         net_predictions = net(images)
-        segmentation_classes = getTargetSegmentation(labels)
-        CE_loss_value = CE_loss(net_predictions, segmentation_classes)
-        losses.append(CE_loss_value.cpu().data.numpy())
         pred_y = softMax(net_predictions)
+
+        segmentation_classes = getTargetSegmentation(labels)
+        seg_one_hot = F.one_hot(segmentation_classes,
+                                num_classes=4).permute(0, 3, 1, 2).float()
+
+        loss = loss_function(CE_loss, DiceLossV2Train, 0.4,
+                             pred_y, seg_one_hot, segmentation_classes)
+        losses.append(loss.cpu().data.numpy())
         masks = torch.argmax(pred_y, dim=1)
 
         path = os.path.join('./Results/Images/', modelName, str(epoch))
@@ -103,7 +109,8 @@ def inference(net, img_batch, modelName, epoch):
             os.makedirs(path)
 
         torchvision.utils.save_image(
-            torch.cat([images.data, labels.data, masks.view(labels.shape[0], 1, 256, 256).data / 3.0]),
+            torch.cat([images.data, labels.data, masks.view(
+                labels.shape[0], 1, 256, 256).data / 3.0]),
             os.path.join(path, str(i) + '.png'), padding=0)
 
     printProgressBar(total, total, done="[Inference] Segmentation Done !")
