@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import sys
 import os
-import pdb
+
 
 def printProgressBar(iteration, total, prefix='', suffix='', decimals=1, length=100,
                      fill='=', empty=' ', tip='>', begin='[', end=']', done="[DONE]", clear=True):
@@ -23,12 +23,12 @@ def printProgressBar(iteration, total, prefix='', suffix='', decimals=1, length=
         done        - Optional : display message when 100% is reached       [str] (ex: "[DONE]")
         clear       - Optional : display completion message or leave as is  [str]
     """
-    #pdb.set_trace()
-    percent = ("{0:." + str(decimals) + "f}").format(100 * (iteration / float(total)))
+    percent = ("{0:." + str(decimals) + "f}").format(100 *
+                                                     (iteration / float(total)))
     filledLength = int(length * iteration // total)
     bar = fill * filledLength
     if iteration != total:
-         bar = bar + tip
+        bar = bar + tip
     bar = bar + empty * (length - filledLength - len(tip))
     display = '\r{prefix}{begin}{bar}{end} {percent}%{suffix}' \
               .format(prefix=prefix, begin=begin, bar=bar, end=end, percent=percent, suffix=suffix)

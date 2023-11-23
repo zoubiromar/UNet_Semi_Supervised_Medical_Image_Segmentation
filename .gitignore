@@ -1,4 +1,5 @@
 Data/
-models/Test_Model/
+models/
+Results/
 __pycache__/
 .DS_Store
