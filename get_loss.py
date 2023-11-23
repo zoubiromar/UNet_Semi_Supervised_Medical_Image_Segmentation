@@ -18,8 +18,6 @@ stream_handler.setFormatter(formatter)
 
 logger.addHandler(stream_handler)
 
-logger.info(f'logger level : {logging.DEBUG}')
-
 # Output the training and validation loss of given weights
 
 
