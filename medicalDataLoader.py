@@ -18,7 +18,7 @@ warnings.filterwarnings("ignore")
 
 
 def make_dataset(root, mode):
-    assert mode in ['train','val', 'test', 'unlabeled']
+    assert mode in ['train', 'val', 'test', 'unlabeled']
     items = []
 
     if mode == 'train':
@@ -32,7 +32,8 @@ def make_dataset(root, mode):
         labels.sort()
 
         for it_im, it_gt in zip(images, labels):
-            item = (os.path.join(train_img_path, it_im), os.path.join(train_mask_path, it_gt))
+            item = (os.path.join(train_img_path, it_im),
+                    os.path.join(train_mask_path, it_gt))
             items.append(item)
 
     # Adding code to load unlabeled images
@@ -57,7 +58,8 @@ def make_dataset(root, mode):
         labels.sort()
 
         for it_im, it_gt in zip(images, labels):
-            item = (os.path.join(val_img_path, it_im), os.path.join(val_mask_path, it_gt))
+            item = (os.path.join(val_img_path, it_im),
+                    os.path.join(val_mask_path, it_gt))
             items.append(item)
     else:
         test_img_path = os.path.join(root, 'test', 'Img')
@@ -70,7 +72,8 @@ def make_dataset(root, mode):
         labels.sort()
 
         for it_im, it_gt in zip(images, labels):
-            item = (os.path.join(test_img_path, it_im), os.path.join(test_mask_path, it_gt))
+            item = (os.path.join(test_img_path, it_im),
+                    os.path.join(test_mask_path, it_gt))
             items.append(item)
 
     return items
@@ -113,7 +116,11 @@ class MedicalImageDataset(Dataset):
     def __getitem__(self, index):
         img_path, mask_path = self.imgs[index]
         img = Image.open(img_path)
-        mask = Image.open(mask_path).convert('L') if mask_path else None
+        if mask_path:
+            mask = Image.open(mask_path).convert('L')
+        else:
+            # Create a dummy mask of the same size as the image
+            mask = Image.new('L', img.size)
 
         if self.equalize:
             img = ImageOps.equalize(img)
@@ -123,6 +130,11 @@ class MedicalImageDataset(Dataset):
 
         if self.transform:
             img = self.transform(img)
-            mask = self.mask_transform(mask) if mask is not None else None
+            if mask is not None:
+                mask = self.mask_transform(mask)
+            else:
+                # Create a dummy mask of the same size as the image
+                dummy_mask = Image.new('L', img.size)
+                mask = self.mask_transform(dummy_mask)
 
         return [img, mask, img_path]
