@@ -73,7 +73,7 @@ def getTargetSegmentation(batch):
     return (batch / denom).round().long().squeeze()
 
 
-def inference(net, img_batch, modelName, epoch, loss_function):
+def inference(net, img_batch, loss_function, modelName, epoch):
     total = len(img_batch)
     net.eval()
 
