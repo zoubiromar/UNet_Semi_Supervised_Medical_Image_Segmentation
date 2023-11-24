@@ -1,2 +1,5 @@
-models/Test_Model1/
+.idea
+.DS_Store
+models/
+Results
 __pycache__/

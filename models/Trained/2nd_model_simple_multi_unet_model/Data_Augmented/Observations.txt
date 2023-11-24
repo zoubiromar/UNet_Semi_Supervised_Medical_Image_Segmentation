@@ -1,2 +1,0 @@
-Data augmentation, retraining the model on pre-trained weights while applying data augmentation
-Augmented_2x, Augmented_3x, Augmented_4x gives best reults so far
