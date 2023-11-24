@@ -25,6 +25,7 @@ def runTraining(epoch_num, weights_path='', augm=False):
 
     # DEFINE HYPERPARAMETERS (batch_size > 1)
     batch_size = 16
+    batch_size_unlabel = 64
     batch_size_val = 16
     lr = 0.001   # Learning Rate
     epoch = epoch_num  # Number of epochs
@@ -56,31 +57,31 @@ def runTraining(epoch_num, weights_path='', augm=False):
                                    num_workers=0,
                                    shuffle=True)
 
-    pseudo_label_set_full = medicalDataLoader.MedicalImageDataset('train',
+    pseudo_label_set_full = medicalDataLoader.MedicalImageDataset('unlabeled',
                                                                   root_dir,
                                                                   transform=transform,
                                                                   mask_transform=mask_transform,
-                                                                  augment=augm,  # Set to True to enable data augmentation
+                                                                  augment=False,  # Set to True to enable data augmentation
                                                                   equalize=False)
 
     pseudo_label_loader_full = DataLoader(pseudo_label_set_full,
-                                          batch_size=batch_size,
+                                          batch_size=batch_size_unlabel,
                                           worker_init_fn=np.random.seed(0),
                                           num_workers=0,
-                                          shuffle=True)
+                                          shuffle=False)
 
-    unlabel_set_full = medicalDataLoader.MedicalImageDataset('train',
+    unlabel_set_full = medicalDataLoader.MedicalImageDataset('unlabeled',
                                                              root_dir,
                                                              transform=transform,
                                                              mask_transform=mask_transform,
-                                                             augment=augm,  # Set to True to enable data augmentation
+                                                             augment=True,  # Set to True to enable data augmentation
                                                              equalize=False)
 
     unlabel_loader_full = DataLoader(unlabel_set_full,
-                                     batch_size=batch_size,
+                                     batch_size=batch_size_unlabel,
                                      worker_init_fn=np.random.seed(0),
                                      num_workers=0,
-                                     shuffle=True)
+                                     shuffle=False)
 
     val_set = medicalDataLoader.MedicalImageDataset('val',
                                                     root_dir,
@@ -92,7 +93,7 @@ def runTraining(epoch_num, weights_path='', augm=False):
                             batch_size=batch_size_val,
                             worker_init_fn=np.random.seed(0),
                             num_workers=0,
-                            shuffle=False)
+                            shuffle=True)
 
     # INITIALIZE YOUR MODEL
     num_classes = 4  # NUMBER OF CLASSES
@@ -163,9 +164,7 @@ def runTraining(epoch_num, weights_path='', augm=False):
             optimizer.zero_grad()
 
             # GET IMAGES, LABELS and IMG NAMES
-            images = data[0]
-            labels = data[1]
-            # img_names = data[2]
+            images, labels, _ = data
 
             # From numpy to torch variables
             labels = to_var(labels)
@@ -210,7 +209,7 @@ def runTraining(epoch_num, weights_path='', augm=False):
         model.eval()
         pseudo_labels = []
         for j, data in enumerate(pseudo_label_loader_full):
-            images, images_name = data
+            images, _, _ = data
             pseudo_label = model(images)
             pseudo_labels.append(pseudo_label)
 
@@ -222,7 +221,7 @@ def runTraining(epoch_num, weights_path='', augm=False):
         for j, data in enumerate(unlabel_loader_full):
             model.zero_grad()
             optimizer.zero_grad()
-            images, _ = data
+            images, _, _ = data
             labels = getTargetSegmentation(pseudo_labels[j])
 
             y_pred = model(images)
