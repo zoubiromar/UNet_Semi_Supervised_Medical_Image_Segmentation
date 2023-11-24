@@ -1,6 +1,5 @@
 import torch.nn.init as init
 import torch.nn.functional as F
-import math
 
 import torch
 import torch.nn.functional as F
@@ -43,7 +42,8 @@ class _DecoderBlock(nn.Module):
             nn.Conv2d(in_channels, middle_channels, kernel_size=3),
             nn.BatchNorm2d(middle_channels),
             nn.ReLU(inplace=True),
-            nn.ConvTranspose2d(middle_channels, out_channels, kernel_size=2, stride=2),
+            nn.ConvTranspose2d(middle_channels, out_channels,
+                               kernel_size=2, stride=2),
         )
 
     def forward(self, x):
@@ -78,10 +78,14 @@ class UNet(nn.Module):
         enc3 = self.enc3(enc2)
         enc4 = self.enc4(enc3)
         center = self.center(enc4)
-        dec4 = self.dec4(torch.cat([center, F.upsample(enc4, center.size()[2:], mode='bilinear')], 1))
-        dec3 = self.dec3(torch.cat([dec4, F.upsample(enc3, dec4.size()[2:], mode='bilinear')], 1))
-        dec2 = self.dec2(torch.cat([dec3, F.upsample(enc2, dec3.size()[2:], mode='bilinear')], 1))
-        dec1 = self.dec1(torch.cat([dec2, F.upsample(enc1, dec2.size()[2:], mode='bilinear')], 1))
+        dec4 = self.dec4(
+            torch.cat([center, F.upsample(enc4, center.size()[2:], mode='bilinear')], 1))
+        dec3 = self.dec3(
+            torch.cat([dec4, F.upsample(enc3, dec4.size()[2:], mode='bilinear')], 1))
+        dec2 = self.dec2(
+            torch.cat([dec3, F.upsample(enc2, dec3.size()[2:], mode='bilinear')], 1))
+        dec1 = self.dec1(
+            torch.cat([dec2, F.upsample(enc1, dec2.size()[2:], mode='bilinear')], 1))
         final = self.final(dec1)
 
         return F.upsample(final, x.size()[2:], mode='bilinear')
