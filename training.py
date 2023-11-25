@@ -76,19 +76,19 @@ def runTraining(epoch_num, weights_path='', augm=False):
     print(" Model Name: {}".format(modelName))
 
     # CREATION OF YOUR MODEL
-    net = ComplexUNet(num_classes)
+    model = ComplexUNet(num_classes)
 
     # net = UNet(num_classes)
-    net = net.to(device)  # Move the model to the device
+    model = model.to(device)  # Move the model to the device
 
     # Load the weights from the previously trained model
     if weights_path != '':
         # previous_model_dir = './models/' + 'Test_Model' + '/' + str(epoch_num) +'_Epoch'
-        net.load_state_dict(torch.load(weights_path))
+        model.load_state_dict(torch.load(weights_path))
         print(" Model loaded: {}".format(weights_path))
 
     print("Total params: {0:,}".format(sum(p.numel()
-          for p in net.parameters() if p.requires_grad)))
+          for p in model.parameters() if p.requires_grad)))
 
     # DEFINE YOUR OUTPUT COMPONENTS (e.g., SOFTMAX, LOSS FUNCTION, ETC)
     softMax = torch.nn.Softmax(dim=1)
@@ -97,12 +97,12 @@ def runTraining(epoch_num, weights_path='', augm=False):
 
     # PUT EVERYTHING IN GPU RESOURCES
     if torch.cuda.is_available():
-        net.cuda()
+        model.cuda()
         softMax.cuda()
         CE_loss.cuda()
 
     # DEFINE YOUR OPTIMIZER
-    optimizer = torch.optim.Adam(net.parameters(), lr=lr)
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     def lambda1(epoch): return 0.95 ** epoch
     scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda1)
 
@@ -124,7 +124,7 @@ def runTraining(epoch_num, weights_path='', augm=False):
 
     # FOR EACH EPOCH
     for i in range(epoch):
-        net.train()
+        model.train()
         lossEpoch = []
         lrEpoch = []
         num_batches = len(train_loader_full)
@@ -132,7 +132,7 @@ def runTraining(epoch_num, weights_path='', augm=False):
         # FOR EACH BATCH
         for j, data in enumerate(train_loader_full):
             # Set to zero all the gradients
-            net.zero_grad()
+            model.zero_grad()
             optimizer.zero_grad()
 
             # GET IMAGES, LABELS and IMG NAMES
@@ -146,14 +146,14 @@ def runTraining(epoch_num, weights_path='', augm=False):
 
             ################### Train ###################
             # -- The CNN makes its predictions (forward pass)
-            net_predictions = net.forward(images)
+            net_predictions = model.forward(images)
             y_pred = softMax(net_predictions)
             # -- Compute the losses --#
             # THIS FUNCTION IS TO CONVERT LABELS TO A FORMAT TO BE USED IN THIS CODE
 
             segmentation_classes = getTargetSegmentation(labels)
             seg_one_hot = F.one_hot(
-                segmentation_classes, num_classes=4).permute(0, 3, 1, 2).float()
+                segmentation_classes, num_classes=num_classes).permute(0, 3, 1, 2).float()
 
             # COMPUTE THE LOSS
             # pred_one = predToSegmentation(s_pred)
@@ -161,7 +161,6 @@ def runTraining(epoch_num, weights_path='', augm=False):
             loss = loss_function(CE_loss, DiceLossV2Train,
                                  0.4, y_pred, seg_one_hot, segmentation_classes)
 
-            lossTotal = loss
             # DO THE STEPS FOR BACKPROP (two things to be done in pytorch)
             loss.backward()
             optimizer.step()
@@ -172,18 +171,18 @@ def runTraining(epoch_num, weights_path='', augm=False):
             lrEpoch.append(lr_step)
 
             # THIS IS JUST TO VISUALIZE THE TRAINING
-            lossEpoch.append(lossTotal.cpu().data.numpy())
+            lossEpoch.append(loss.cpu().data.numpy())
 
             # scheduler.step()
             printProgressBar(j + 1, num_batches,
                              prefix="[Training] Epoch: {} ".format(i),
                              length=15,
-                             suffix=" Loss: {:.4f}, lr: {} ".format(lossTotal, lr_step))
+                             suffix=" Loss: {:.4f}, lr: {} ".format(loss, lr_step))
 
         lossEpoch = np.asarray(lossEpoch)
         lossEpoch = lossEpoch.mean()
 
-        lossVal = inference(net, val_loader, loss_function, "modele", i)
+        lossVal = inference(model, val_loader, loss_function, "modele", i)
         scheduler.step()
         lossTotalVal.append(lossVal)
         lossTotalTraining.append(lossEpoch)
@@ -204,13 +203,13 @@ def runTraining(epoch_num, weights_path='', augm=False):
 
             if trigger_times >= patience:
                 print('Early stopping!\nStart to test process.')
-                torch.save(net.state_dict(), './models/' +
+                torch.save(model.state_dict(), './models/' +
                            modelName + '/' + str(i) + '_Epoch')
                 break
         else:
             print('trigger times: 0')
             trigger_times = 0
-        torch.save(net.state_dict(), './models/' +
+        torch.save(model.state_dict(), './models/' +
                    modelName + '/' + str(i) + '_Epoch')
         Best_loss_val = lossVal
     return lossTotalTraining, lossTotalVal, batch_size, batch_size_val, lrs, lr
