@@ -18,15 +18,15 @@ def loss_function(loss1, loss2, alpha: float, predictions, y_hat_1, y_hat_2):
     return alpha * _loss1 + (1-alpha) * _loss2
 
 
-def runTraining(epoch_num, weights_path='', augm=False):
+def fixmatch(epoch_num, weights_path='', augm=False):
     print('-' * 40)
     print('~~~~~~~~  Starting the training... ~~~~~~')
     print('-' * 40)
 
     # DEFINE HYPERPARAMETERS (batch_size > 1)
-    batch_size = 16
-    batch_size_unlabel = 32
-    batch_size_val = 16
+    batch_size = 1
+    batch_size_unlabel = 4
+    batch_size_val = 4
     lr = 0.001   # Learning Rate
 
     root_dir = './Data/'
@@ -92,7 +92,7 @@ def runTraining(epoch_num, weights_path='', augm=False):
                             batch_size=batch_size_val,
                             worker_init_fn=np.random.seed(0),
                             num_workers=0,
-                            shuffle=True)
+                            shuffle=False)
 
     # INITIALIZE YOUR MODEL
     num_classes = 4  # NUMBER OF CLASSES
@@ -120,20 +120,21 @@ def runTraining(epoch_num, weights_path='', augm=False):
 
     # DEFINE YOUR OUTPUT COMPONENTS (e.g., SOFTMAX, LOSS FUNCTION, ETC)
     soft_max = torch.nn.Softmax(dim=-1)
-    ce_loss = torch.nn.CrossEntropyLoss()
-    dice_loss_v2_train = DiceLossV2(n_classes=num_classes)
+    ce_loss_train = torch.nn.CrossEntropyLoss()
+    ce_loss_unlabeled = torch.nn.CrossEntropyLoss(label_smoothing=0.95)
 
     # PUT EVERYTHING IN GPU RESOURCES
     if torch.cuda.is_available():
         student.cuda()
         teacher.cuda()
         soft_max.cuda()
-        ce_loss.cuda()
+        ce_loss_train.cuda()
+        ce_loss_unlabeled.cuda()
 
     # DEFINE YOUR OPTIMIZER
     optimizer = torch.optim.Adam(student.parameters(), lr=lr)
-    def lambda1(epoch_num): return 0.95 ** epoch_num
-    scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda1)
+    # def lambda1(epoch_num): return 0.95 ** epoch_num
+    # scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda1)
 
     ### To save statistics ####
     lossTotalTraining = []
@@ -159,37 +160,37 @@ def runTraining(epoch_num, weights_path='', augm=False):
         num_batches = len(train_loader_full)
 
         # Semi Supervised
-        student.train()
         for j, (data_train, data_pseudo_label, data_unlabeled) in enumerate(zip(train_loader_full, pseudo_label_loader_full, unlabel_loader_full)):
+            student.train()
             student.zero_grad()
             optimizer.zero_grad()
-            images_train, labels_train, _ = data_train
+            images_train, _, _ = data_train
             images_pseudo_label, _, _ = data_pseudo_label
             images_unlabeled, _, _ = data_unlabeled
 
             y_pred = student(images_train)
             s_pred = soft_max(y_pred)
 
-            # -- Compute the losses --#
-            # THIS FUNCTION IS TO CONVERT LABELS TO A FORMAT TO BE USED IN THIS CODE
-
-            segmentation_classes = getTargetSegmentation(labels_train)
-            seg_one_hot = F.one_hot(
-                segmentation_classes, num_classes=num_classes).permute(0, 3, 1, 2).float()
+            # create labels on which we want to match on
+            with torch.no_grad():
+                labels = teacher(images_train)
+            s_labels = soft_max(labels)
 
             # COMPUTE THE LOSS
-            loss_train = loss_function(ce_loss(reduction='mean'), dice_loss_v2_train,
-                                       0.4, s_pred, seg_one_hot, segmentation_classes) / batch_size
-
+            loss_train = ce_loss_train(s_pred, s_labels)
+            student.eval()
             with torch.no_grad():
-                pseudo_labels = teacher(images_pseudo_label)
+                pseudo_labels = student(images_pseudo_label)
+            s_labels = soft_max(pseudo_labels)
             # -- The CNN makes its predictions (forward pass)
+            student.train()
+
             y_pred = student(images_unlabeled)
             s_pred = soft_max(y_pred)
 
-            loss_unlabel = ce_loss(s_pred, pseudo_labels, reduction='mean')
+            loss_unlabel = ce_loss_unlabeled(s_pred, s_labels)
 
-            loss = loss_train + loss_unlabel
+            loss = loss_train + loss_unlabel * 0.2
 
             # DO THE STEPS FOR BACKPROP (two things to be done in pytorch)
             loss.backward()
@@ -215,7 +216,7 @@ def runTraining(epoch_num, weights_path='', augm=False):
 
         lossVal = inference(student, val_loader,
                             loss_function, "modele", epoch)
-        scheduler.step()
+        # scheduler.step()
         lossTotalVal.append(lossVal)
         lossTotalTraining.append(lossEpoch)
 
