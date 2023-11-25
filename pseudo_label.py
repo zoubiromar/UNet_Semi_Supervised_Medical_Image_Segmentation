@@ -102,7 +102,7 @@ def fixmatch(epoch_num, weights_path='', augm=False):
     print(" Model Name: {}".format(modelName))
 
     # CREATION OF YOUR MODEL
-    student = UNet(num_classes)
+    student = ComplexUNet(num_classes)
     teacher = ComplexUNet(num_classes)
 
     # net = UNet(num_classes)
@@ -133,8 +133,8 @@ def fixmatch(epoch_num, weights_path='', augm=False):
 
     # DEFINE YOUR OPTIMIZER
     optimizer = torch.optim.Adam(student.parameters(), lr=lr)
-    # def lambda1(epoch_num): return 0.95 ** epoch_num
-    # scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda1)
+    def lambda1(epoch_num): return 0.95 ** epoch_num
+    scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda1)
 
     ### To save statistics ####
     lossTotalTraining = []
@@ -190,7 +190,7 @@ def fixmatch(epoch_num, weights_path='', augm=False):
 
             loss_unlabel = ce_loss_unlabeled(s_pred, s_labels)
 
-            loss = loss_train + loss_unlabel * 0.2
+            loss = loss_train + loss_unlabel
 
             # DO THE STEPS FOR BACKPROP (two things to be done in pytorch)
             loss.backward()
@@ -216,7 +216,7 @@ def fixmatch(epoch_num, weights_path='', augm=False):
 
         lossVal = inference(student, val_loader,
                             loss_function, "modele", epoch)
-        # scheduler.step()
+        scheduler.step()
         lossTotalVal.append(lossVal)
         lossTotalTraining.append(lossEpoch)
 
