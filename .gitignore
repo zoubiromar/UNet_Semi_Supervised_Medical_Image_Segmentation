@@ -1,6 +1,5 @@
 .idea
 .DS_Store
-models/
-Results
+models/Test_Model
 __pycache__/
 _*.py
