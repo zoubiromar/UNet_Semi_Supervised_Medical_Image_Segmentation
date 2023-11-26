@@ -24,9 +24,9 @@ def fixmatch(epoch_num, weights_path='', augm=False):
     print('-' * 40)
 
     # DEFINE HYPERPARAMETERS (batch_size > 1)
-    batch_size = 1
-    batch_size_unlabel = 4
-    batch_size_val = 4
+    batch_size = 16
+    batch_size_unlabel = 16
+    batch_size_val = 16
     lr = 0.001   # Learning Rate
 
     root_dir = './Data_/'
@@ -151,22 +151,20 @@ def fixmatch(epoch_num, weights_path='', augm=False):
         os.makedirs(directory)
 
     # START THE TRAINING
+    num_batches_train = len(train_loader_full)
 
     # FOR EACH EPOCH
     for epoch in range(epoch_num):
         student.train()
         lossEpoch = []
         lrEpoch = []
-        num_batches = len(train_loader_full)
 
         # Semi Supervised
-        for j, (data_train, data_pseudo_label, data_unlabeled) in enumerate(zip(train_loader_full, pseudo_label_loader_full, unlabel_loader_full)):
+        for j, data_train in enumerate(train_loader_full):
             student.train()
             student.zero_grad()
             optimizer.zero_grad()
             images_train, _, _ = data_train
-            images_pseudo_label, _, _ = data_pseudo_label
-            images_unlabeled, _, _ = data_unlabeled
 
             y_pred = student(images_train)
             s_pred = soft_max(y_pred)
@@ -178,18 +176,25 @@ def fixmatch(epoch_num, weights_path='', augm=False):
 
             # COMPUTE THE LOSS
             loss_train = ce_loss_train(s_pred, s_labels)
-            student.eval()
-            with torch.no_grad():
-                pseudo_labels = student(images_pseudo_label)
-            s_labels = soft_max(pseudo_labels)
-            # -- The CNN makes its predictions (forward pass)
-            student.train()
-
-            y_pred = student(images_unlabeled)
-            s_pred = soft_max(y_pred)
-
+            loss_unlabel = 0
+            for (data_pseudo_label, data_unlabeled) in zip(pseudo_label_loader_full, unlabel_loader_full):
+                images_pseudo_label, _, _ = data_pseudo_label
+                images_unlabeled, _, _ = data_unlabeled
+                student.eval()
+                with torch.no_grad():
+                    pseudo_labels = student(images_pseudo_label)
+                try:
+                    s_labels = torch.cat((s_labels, soft_max(pseudo_labels)))
+                except:
+                    s_labels = soft_max(pseudo_labels)
+                # -- The CNN makes its predictions (forward pass)
+                student.train()
+                y_pred = student(images_unlabeled)
+                try:
+                    s_pred = torch.cat((s_pred, soft_max(y_pred)))
+                except:
+                    s_pred = soft_max(y_pred)
             loss_unlabel = ce_loss_unlabeled(s_pred, s_labels)
-
             loss = loss_train + loss_unlabel
 
             # DO THE STEPS FOR BACKPROP (two things to be done in pytorch)
@@ -205,7 +210,7 @@ def fixmatch(epoch_num, weights_path='', augm=False):
             lossEpoch.append(loss.cpu().data.numpy())
 
             # scheduler.step()
-            printProgressBar(j + 1, num_batches,
+            printProgressBar(j + 1, num_batches_train,
                              prefix="[Semi-Supervised] Epoch: {} ".format(
                                  epoch),
                              length=15,
@@ -224,7 +229,7 @@ def fixmatch(epoch_num, weights_path='', augm=False):
         lrEpoch = lrEpoch.mean()
         lrs.append(lrEpoch)
 
-        printProgressBar(num_batches, num_batches,
+        printProgressBar(num_batches_train, num_batches_train,
                          done="[Training] Epoch: {}, LossT: {:.4f}, LossV: {:.4f}".format(epoch, lossEpoch, lossVal))
 
         if not os.path.exists('./models/' + modelName):
