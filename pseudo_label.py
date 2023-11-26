@@ -29,7 +29,7 @@ def fixmatch(epoch_num, weights_path='', augm=False):
     batch_size_val = 4
     lr = 0.001   # Learning Rate
 
-    root_dir = './Data/'
+    root_dir = './Data_/'
 
     print(' Dataset: {} '.format(root_dir))
 
@@ -47,7 +47,7 @@ def fixmatch(epoch_num, weights_path='', augm=False):
                                                            root_dir,
                                                            transform=transform,
                                                            mask_transform=mask_transform,
-                                                           augment=augm,  # Set to True to enable data augmentation
+                                                           augment=False,  # Set to True to enable data augmentation
                                                            equalize=False)
 
     train_loader_full = DataLoader(train_set_full,
@@ -67,7 +67,7 @@ def fixmatch(epoch_num, weights_path='', augm=False):
                                           batch_size=batch_size_unlabel,
                                           worker_init_fn=np.random.seed(0),
                                           num_workers=0,
-                                          shuffle=False)
+                                          shuffle=True)
 
     unlabel_set_full = medicalDataLoader.MedicalImageDataset('unlabeled',
                                                              root_dir,
@@ -80,7 +80,7 @@ def fixmatch(epoch_num, weights_path='', augm=False):
                                      batch_size=batch_size_unlabel,
                                      worker_init_fn=np.random.seed(0),
                                      num_workers=0,
-                                     shuffle=False)
+                                     shuffle=True)
 
     val_set = medicalDataLoader.MedicalImageDataset('val',
                                                     root_dir,
@@ -92,7 +92,7 @@ def fixmatch(epoch_num, weights_path='', augm=False):
                             batch_size=batch_size_val,
                             worker_init_fn=np.random.seed(0),
                             num_workers=0,
-                            shuffle=False)
+                            shuffle=True)
 
     # INITIALIZE YOUR MODEL
     num_classes = 4  # NUMBER OF CLASSES
