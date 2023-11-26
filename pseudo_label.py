@@ -9,6 +9,8 @@ from UNet_Base import *
 # Select GPU if available, else CPU
 device = torch.device('cpu')
 
+# Same loss function that training, it is only use for validation
+
 
 def loss_function(loss1, loss2, alpha: float, predictions, y_hat_1, y_hat_2):
     if (alpha > 1 or alpha < 0):
@@ -18,6 +20,7 @@ def loss_function(loss1, loss2, alpha: float, predictions, y_hat_1, y_hat_2):
     return alpha * _loss1 + (1-alpha) * _loss2
 
 
+# methode base on fixmatch article
 def fixmatch(epoch_num, weights_path='', augm=False):
     print('-' * 40)
     print('~~~~~~~~  Starting the training... ~~~~~~')
@@ -29,6 +32,7 @@ def fixmatch(epoch_num, weights_path='', augm=False):
     batch_size_val = 16
     lr = 0.001   # Learning Rate
 
+    # use a modify root directory where labeled images had been add to to unlabeled data
     root_dir = './Data_/'
 
     print(' Dataset: {} '.format(root_dir))
@@ -105,22 +109,22 @@ def fixmatch(epoch_num, weights_path='', augm=False):
     student = UNet(num_classes)
     teacher = ComplexUNet(num_classes)
 
-    # net = UNet(num_classes)
     student = student.to(device)  # Move the model to the device
     teacher = teacher.to(device)  # Move the model to the device
 
     # Load the weights from the previously trained model
     if weights_path != '':
-        # previous_model_dir = './models/' + 'Test_Model' + '/' + str(epoch_num) +'_Epoch'
         teacher.load_state_dict(torch.load(weights_path))
         print(" Model loaded: {}".format(weights_path))
 
+    # Logging parameters informations
     print("Total params: {0:,}".format(sum(p.numel()
           for p in student.parameters() if p.requires_grad)))
 
     # DEFINE YOUR OUTPUT COMPONENTS (e.g., SOFTMAX, LOSS FUNCTION, ETC)
     soft_max = torch.nn.Softmax(dim=-1)
     ce_loss_train = torch.nn.CrossEntropyLoss()
+    # Only calculate when label is over 0.95 of confidence
     ce_loss_unlabeled = torch.nn.CrossEntropyLoss(label_smoothing=0.95)
 
     # PUT EVERYTHING IN GPU RESOURCES
@@ -139,11 +143,12 @@ def fixmatch(epoch_num, weights_path='', augm=False):
     ### To save statistics ####
     lossTotalTraining = []
     lossTotalVal = []
-    Best_loss_val = 1000
-    BestEpoch = 0
+    best_loss_val = float('inf')
+    best_epoch = 0
     lrs = []
     patience = 3
 
+    # Create directory to save models
     directory = 'Results/Statistics/' + modelName
 
     print("~~~~~~~~~~~ Starting the training ~~~~~~~~~~")
@@ -160,22 +165,25 @@ def fixmatch(epoch_num, weights_path='', augm=False):
         lrEpoch = []
 
         # Semi Supervised
-        for j, data_train in enumerate(train_loader_full):
+        for nth_batch_train, data_train in enumerate(train_loader_full):
             student.train()
             student.zero_grad()
             optimizer.zero_grad()
             images_train, _, _ = data_train
 
-            y_pred = student(images_train)
-            s_pred = soft_max(y_pred)
-
-            # create labels on which we want to match on
+            # create labels on which we want to match on (same as trained model)
             with torch.no_grad():
                 labels = teacher(images_train)
             s_labels = soft_max(labels)
 
-            # COMPUTE THE LOSS
+            # the student prediction
+            y_pred = student(images_train)
+            s_pred = soft_max(y_pred)
+
+            # COMPUTE THE LOSS for trained image
             loss_train = ce_loss_train(s_pred, s_labels)
+
+            # start concistency (compare no transformed data to transformed data using the same model)
             loss_unlabel = 0
             for (data_pseudo_label, data_unlabeled) in zip(pseudo_label_loader_full, unlabel_loader_full):
                 images_pseudo_label, _, _ = data_pseudo_label
@@ -194,7 +202,10 @@ def fixmatch(epoch_num, weights_path='', augm=False):
                     s_pred = torch.cat((s_pred, soft_max(y_pred)))
                 except:
                     s_pred = soft_max(y_pred)
+            # calculate loss
             loss_unlabel = ce_loss_unlabeled(s_pred, s_labels)
+
+            # make a mix of losses
             loss = loss_train + loss_unlabel
 
             # DO THE STEPS FOR BACKPROP (two things to be done in pytorch)
@@ -202,7 +213,7 @@ def fixmatch(epoch_num, weights_path='', augm=False):
             optimizer.step()
 
             # Update LR
-            # scheduler.step()
+            scheduler.step()
             lr_step = optimizer.state_dict()["param_groups"][0]["lr"]
             lrEpoch.append(lr_step)
 
@@ -210,7 +221,7 @@ def fixmatch(epoch_num, weights_path='', augm=False):
             lossEpoch.append(loss.cpu().data.numpy())
 
             # scheduler.step()
-            printProgressBar(j + 1, num_batches_train,
+            printProgressBar(nth_batch_train + 1, num_batches_train,
                              prefix="[Semi-Supervised] Epoch: {} ".format(
                                  epoch),
                              length=15,
@@ -235,7 +246,7 @@ def fixmatch(epoch_num, weights_path='', augm=False):
         if not os.path.exists('./models/' + modelName):
             os.makedirs('./models/' + modelName)
 
-        if lossVal > Best_loss_val:
+        if lossVal > best_loss_val:
             trigger_times += 1
             print('trigger times:', trigger_times)
 
@@ -247,7 +258,8 @@ def fixmatch(epoch_num, weights_path='', augm=False):
         else:
             print('trigger times: 0')
             trigger_times = 0
+            best_epoch = epoch
         torch.save(student.state_dict(), './models/' +
                    modelName + '/' + str(epoch) + '_Epoch')
-        Best_loss_val = lossVal
-    return lossTotalTraining, lossTotalVal, batch_size, batch_size_val, lrs, lr
+        best_loss_val = lossVal
+    return lossTotalTraining, lossTotalVal, batch_size, batch_size_val, lrs, lr, best_epoch
