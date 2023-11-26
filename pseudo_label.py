@@ -90,6 +90,7 @@ def fixmatch(epoch_num, weights_path='', augm=False):
                                                     root_dir,
                                                     transform=transform,
                                                     mask_transform=mask_transform,
+                                                    augment=True,
                                                     equalize=False)
 
     val_loader = DataLoader(val_set,
@@ -185,6 +186,8 @@ def fixmatch(epoch_num, weights_path='', augm=False):
 
             # start concistency (compare no transformed data to transformed data using the same model)
             loss_unlabel = 0
+            s_labels = None
+            s_pred = None
             # delete train_loader_full from iterration (added for testing for memory issues)
             for (data_pseudo_label, data_unlabeled, _) in zip(pseudo_label_loader_full, unlabel_loader_full, train_loader_full):
                 images_pseudo_label, _, _ = data_pseudo_label
