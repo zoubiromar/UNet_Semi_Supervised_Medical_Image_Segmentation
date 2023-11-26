@@ -102,7 +102,7 @@ def fixmatch(epoch_num, weights_path='', augm=False):
     print(" Model Name: {}".format(modelName))
 
     # CREATION OF YOUR MODEL
-    student = ComplexUNet(num_classes)
+    student = UNet(num_classes)
     teacher = ComplexUNet(num_classes)
 
     # net = UNet(num_classes)
