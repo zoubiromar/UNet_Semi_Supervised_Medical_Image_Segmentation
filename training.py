@@ -76,7 +76,7 @@ def runTraining(epoch_num, weights_path='', augm=False):
     print(" Model Name: {}".format(modelName))
 
     # CREATION OF YOUR MODEL
-    model = ComplexUNet(num_classes)
+    model = UNet(num_classes)
 
     # net = UNet(num_classes)
     model = model.to(device)  # Move the model to the device
@@ -208,8 +208,9 @@ def runTraining(epoch_num, weights_path='', augm=False):
                 break
         else:
             print('trigger times: 0')
+            BestEpoch = i
             trigger_times = 0
         torch.save(model.state_dict(), './models/' +
                    modelName + '/' + str(i) + '_Epoch')
         Best_loss_val = lossVal
-    return lossTotalTraining, lossTotalVal, batch_size, batch_size_val, lrs, lr
+    return lossTotalTraining, lossTotalVal, batch_size, batch_size_val, lrs, lr, i

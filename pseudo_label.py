@@ -108,7 +108,7 @@ def fixmatch(epoch_num, weights_path='', augm=False):
 
     # CREATION OF YOUR MODEL
     student = UNet(num_classes)
-    teacher = ComplexUNet(num_classes)
+    teacher = UNet(num_classes)
 
     student = student.to(device)  # Move the model to the device
     teacher = teacher.to(device)  # Move the model to the device
@@ -209,7 +209,7 @@ def fixmatch(epoch_num, weights_path='', augm=False):
             # calculate loss
             loss_unlabel = ce_loss_unlabeled(s_pred, s_labels)
             # make a mix of losses
-            loss = loss_train + loss_unlabel
+            loss = loss_train + loss_unlabel * 0.3
 
             # DO THE STEPS FOR BACKPROP (two things to be done in pytorch)
             loss.backward()
