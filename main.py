@@ -3,10 +3,10 @@ import os
 from training import runTraining
 from pseudo_label import fixmatch
 
-runTraining(100)
+# runTraining(100)
 
 _model_path = os.path.join("models", "ComplexUNet",
-                           "_".join([str(29), "Epoch"]))
+                           "_".join([str(34), "Epoch"]))
 
 lossTotalTraining, lossTotalVal, batch_size, batch_size_val, lrs, lr = fixmatch(
     100, _model_path)
