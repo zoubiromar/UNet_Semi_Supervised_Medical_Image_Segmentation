@@ -185,7 +185,8 @@ def fixmatch(epoch_num, weights_path='', augm=False):
 
             # start concistency (compare no transformed data to transformed data using the same model)
             loss_unlabel = 0
-            for (data_pseudo_label, data_unlabeled) in zip(pseudo_label_loader_full, unlabel_loader_full):
+            # delete train_loader_full from iterration (added for testing for memory issues)
+            for (data_pseudo_label, data_unlabeled, _) in zip(pseudo_label_loader_full, unlabel_loader_full, train_loader_full):
                 images_pseudo_label, _, _ = data_pseudo_label
                 images_unlabeled, _, _ = data_unlabeled
                 student.eval()
@@ -204,7 +205,6 @@ def fixmatch(epoch_num, weights_path='', augm=False):
                     s_pred = soft_max(y_pred)
             # calculate loss
             loss_unlabel = ce_loss_unlabeled(s_pred, s_labels)
-
             # make a mix of losses
             loss = loss_train + loss_unlabel
 
