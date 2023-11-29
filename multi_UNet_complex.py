@@ -47,7 +47,7 @@ class ComplexUNet(nn.Module):
         self.dec3 = DoubleConv(256, 128)
         self.dec2 = DoubleConv(128, 64)
         self.dec1 = DoubleConv(64, 32)
-        self.final = nn.Conv2d(32, num_classes, kernel_size=1)
+        self.final = nn.Conv2d(32, num_classes, kernel_size=3, padding=1)
 
         # Initialize weights for the conv layers and batchnorm layers in each block
         for block in [self.enc1, self.enc2, self.enc3, self.enc4, self.center, self.dec4, self.dec3, self.dec2, self.dec1]:
@@ -59,10 +59,10 @@ class ComplexUNet(nn.Module):
 
     def forward(self, x):
         enc1 = self.enc1(x)
-        enc2 = self.enc2(F.max_pool2d(enc1, 2))
-        enc3 = self.enc3(F.max_pool2d(enc2, 2))
-        enc4 = self.enc4(F.max_pool2d(enc3, 2))
-        center = self.center(F.max_pool2d(enc4, 2))
+        enc2 = self.enc2(F.avg_pool2d(enc1, 2))
+        enc3 = self.enc3(F.avg_pool2d(enc2, 2))
+        enc4 = self.enc4(F.avg_pool2d(enc3, 2))
+        center = self.center(F.avg_pool2d(enc4, 2))
         dec4 = self.dec4(F.interpolate(center, scale_factor=2, mode='bilinear', align_corners=False))
         dec3 = self.dec3(F.interpolate(dec4, scale_factor=2, mode='bilinear', align_corners=False))
         dec2 = self.dec2(F.interpolate(dec3, scale_factor=2, mode='bilinear', align_corners=False))

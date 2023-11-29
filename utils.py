@@ -79,7 +79,7 @@ def inference(net, img_batch, modelName, epoch):
     net.eval()
 
     softMax = nn.Softmax().cuda()
-    CE_loss = nn.CrossEntropyLoss().cuda()
+    DiceLossV2Train = DiceLossV2(n_classes=4)
 
     losses = []
     for i, data in enumerate(img_batch):
@@ -92,7 +92,7 @@ def inference(net, img_batch, modelName, epoch):
 
         net_predictions = net(images)
         segmentation_classes = getTargetSegmentation(labels)
-        CE_loss_value = CE_loss(net_predictions, segmentation_classes)
+        CE_loss_value = DiceLossV2Train(net_predictions, segmentation_classes, softmax=True)
         losses.append(CE_loss_value.cpu().data.numpy())
         pred_y = softMax(net_predictions)
         masks = torch.argmax(pred_y, dim=1)
