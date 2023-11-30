@@ -29,14 +29,14 @@ def fixmatch(epoch_num, weights_path='', augm=False):
     MODEL_NAME = 'FixMatch'
 
     # DEFINE HYPERPARAMETERS (batch_size > 1)
-    BATCH_SIZE_TRAIN = 2
-    BATCH_SIZE_UNLABEL = 2
-    BATCH_SIZE_VAL = 2
+    BATCH_SIZE_TRAIN = 16
+    BATCH_SIZE_UNLABEL = 16
+    BATCH_SIZE_VAL = 16
     ROOT_DIR = './Data_/'
     PATIENCE = 3  # PATIENCE POUR LA VALIDATION
     THRESHOLD = 0.95
 
-    lr = 0.03   # Learning Rate
+    lr = 0.001   # Learning Rate
     # use a modify root directory where labeled images had been add to to unlabeled data
 
     print(' Dataset: {} '.format(ROOT_DIR))
@@ -192,10 +192,10 @@ def fixmatch(epoch_num, weights_path='', augm=False):
             loss_unlabel = 0
             s_labels = None
             s_pred = None
-            model.zero_grad()
-            optimizer.zero_grad()
+            loss_unlabel = 0
+            iteration = 0
             # delete train_loader_full from iterration (added for testing for memory issues)
-            for (data_pseudo_label, data_unlabeled, _) in zip(pseudo_label_loader_full, unlabel_loader_full, train_loader_full):
+            for (data_pseudo_label, data_unlabeled) in zip(pseudo_label_loader_full, unlabel_loader_full):
                 images_pseudo_label, _, _ = data_pseudo_label
                 images_unlabeled, _, _ = data_unlabeled
                 model.eval()
@@ -208,29 +208,31 @@ def fixmatch(epoch_num, weights_path='', augm=False):
                     torch.mean(s_label, dim=-1), dim=-1)
                 # if the model find an image that have more than threshold accuracy on a class add it to training set
                 if (torch.min(torch.max(_pourcentage_per_classes, dim=-1).values) > THRESHOLD):
-                    model.train()
-                    s_label = torch.round(s_label)
-                    # Find the most present value along the specified dimension (dim=2 in this case)
-                    most_present_value, _ = torch.mode(s_label, dim=-1)
 
-                    # Broadcast the most present value across the dimension
-                    s_label = most_present_value.unsqueeze(
-                        -1).expand_as(s_label)
-                    try:
-                        s_labels = torch.cat((s_labels, s_label))
-                    except:
-                        s_labels = s_label
+                    iteration += 1
+                    model.train()
+                    model.zero_grad()
+                    optimizer.zero_grad()
+                    s_label = torch.round(s_label)
+
+                    # try:
+                    #     s_labels = torch.cat((s_labels, s_label))
+                    # except:
+                    #     s_labels = s_label
                     y_pred = model(images_unlabeled)
-                    try:
-                        s_pred = torch.cat((s_pred, soft_max(y_pred)))
-                    except:
-                        s_pred = soft_max(y_pred)
+                    # try:
+                    #     s_pred = torch.cat((s_pred, soft_max(y_pred)))
+                    # except:
+                    s_pred = soft_max(y_pred)
+                    loss_unlabel += ce_loss(s_pred, s_label)
+                    # loss_function(ce_loss, dice_loss_V2_train,
+                    #                               0.4, s_pred, seg_one_hot, s_label)
             # calculate loss
-            if s_pred != None and s_labels != None:
-                loss_unlabel = ce_loss(s_pred, s_labels)
-            else:
-                loss_unlabel = 0
+            # if s_pred != None and s_labels != None:
+            # else:
             # make a mix of losses
+            if iteration != 0:
+                loss_unlabel = loss_unlabel/iteration
             loss = loss_train + loss_unlabel
 
             # DO THE STEPS FOR BACKPROP (two things to be done in pytorch)
