@@ -34,6 +34,7 @@ def fixmatch(epoch_num, weights_path='', augm=False):
     BATCH_SIZE_VAL = 2
     ROOT_DIR = './Data_/'
     PATIENCE = 3  # PATIENCE POUR LA VALIDATION
+    THRESHOLD = 0.95
 
     lr = 0.03   # Learning Rate
     # use a modify root directory where labeled images had been add to to unlabeled data
@@ -203,7 +204,10 @@ def fixmatch(epoch_num, weights_path='', augm=False):
                     pseudo_labels = model(images_pseudo_label)
                 s_label = soft_max(pseudo_labels)
                 # -- The CNN makes its predictions (forward pass)
-                if (torch.min(torch.max(torch.mean(torch.mean(s_label, dim=-1), dim=-1), dim=-1).values) > 0.95):
+                _pourcentage_per_classes = torch.mean(
+                    torch.mean(s_label, dim=-1), dim=-1)
+                # if the model find a image that have more than threshold accuracy on a class add it to training set
+                if (torch.min(torch.max(_pourcentage_per_classes, dim=-1).values) > THRESHOLD):
                     model.train()
 
                     try:
