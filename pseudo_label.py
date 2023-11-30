@@ -206,10 +206,16 @@ def fixmatch(epoch_num, weights_path='', augm=False):
                 # -- The CNN makes its predictions (forward pass)
                 _pourcentage_per_classes = torch.mean(
                     torch.mean(s_label, dim=-1), dim=-1)
-                # if the model find a image that have more than threshold accuracy on a class add it to training set
+                # if the model find an image that have more than threshold accuracy on a class add it to training set
                 if (torch.min(torch.max(_pourcentage_per_classes, dim=-1).values) > THRESHOLD):
                     model.train()
+                    s_label = torch.round(s_label)
+                    # Find the most present value along the specified dimension (dim=2 in this case)
+                    most_present_value, _ = torch.mode(s_label, dim=-1)
 
+                    # Broadcast the most present value across the dimension
+                    s_label = most_present_value.unsqueeze(
+                        -1).expand_as(s_label)
                     try:
                         s_labels = torch.cat((s_labels, s_label))
                     except:
