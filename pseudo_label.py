@@ -107,18 +107,18 @@ def fixmatch(epoch_num, weights_path='', augm=False):
     print(" Model Name: {}".format(modelName))
 
     # CREATION OF YOUR MODEL
-    student = ComplexUNet(NUM_CLASSES)
+    model = ComplexUNet(NUM_CLASSES)
 
-    student = student.to(device)  # Move the model to the device
+    model = model.to(device)  # Move the model to the device
 
     # Load the weights from the previously trained model
     if weights_path != '':
-        student.load_state_dict(torch.load(weights_path))
+        model.load_state_dict(torch.load(weights_path))
         print(" Model loaded: {}".format(weights_path))
 
     # Logging parameters informations
     print("Total params: {0:,}".format(sum(p.numel()
-          for p in student.parameters() if p.requires_grad)))
+          for p in model.parameters() if p.requires_grad)))
 
     # DEFINE YOUR OUTPUT COMPONENTS (e.g., SOFTMAX, LOSS FUNCTION, ETC)
     soft_max = torch.nn.Softmax(dim=1)
@@ -129,14 +129,14 @@ def fixmatch(epoch_num, weights_path='', augm=False):
 
     # PUT EVERYTHING IN GPU RESOURCES
     if torch.cuda.is_available():
-        student.cuda()
+        model.cuda()
         soft_max.cuda()
         dice_loss_V2_train.cuda()
         ce_loss_train.cuda()
         ce_loss_unlabeled.cuda()
 
     # DEFINE YOUR OPTIMIZER
-    optimizer = torch.optim.Adam(student.parameters(), lr=lr)
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     def lambda1(epoch_num): return 0.95 ** epoch_num
     scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda1)
 
@@ -165,8 +165,8 @@ def fixmatch(epoch_num, weights_path='', augm=False):
 
         # Semi Supervised
         for nth_batch_train, data_train in enumerate(train_loader_full):
-            student.train()
-            student.zero_grad()
+            model.train()
+            model.zero_grad()
             optimizer.zero_grad()
             images_train, labels, _ = data_train
 
@@ -180,7 +180,7 @@ def fixmatch(epoch_num, weights_path='', augm=False):
             # s_labels = soft_max(labels)
 
             # the student prediction
-            y_pred = student(images_train)
+            y_pred = model(images_train)
 
             s_pred = soft_max(y_pred)
 
@@ -193,26 +193,26 @@ def fixmatch(epoch_num, weights_path='', augm=False):
             loss_unlabel = 0
             s_labels = None
             s_pred = None
-            student.zero_grad()
+            model.zero_grad()
             optimizer.zero_grad()
             # delete train_loader_full from iterration (added for testing for memory issues)
             for (data_pseudo_label, data_unlabeled, _) in zip(pseudo_label_loader_full, unlabel_loader_full, train_loader_full):
                 images_pseudo_label, _, _ = data_pseudo_label
                 images_unlabeled, _, _ = data_unlabeled
-                student.eval()
+                model.eval()
 
                 with torch.no_grad():
-                    pseudo_labels = student(images_pseudo_label)
+                    pseudo_labels = model(images_pseudo_label)
                 s_label = soft_max(pseudo_labels)
                 # -- The CNN makes its predictions (forward pass)
                 if (torch.min(torch.max(torch.mean(torch.mean(s_label, dim=-1), dim=-1), dim=-1).values) > 0.95):
-                    student.train()
+                    model.train()
 
                     try:
                         s_labels = torch.cat((s_labels, seg_one_hot))
                     except:
                         s_labels = seg_one_hot
-                    y_pred = student(images_unlabeled)
+                    y_pred = model(images_unlabeled)
                     try:
                         s_pred = torch.cat((s_pred, soft_max(y_pred)))
                     except:
@@ -245,7 +245,7 @@ def fixmatch(epoch_num, weights_path='', augm=False):
         lossEpoch = np.asarray(lossEpoch)
         lossEpoch = lossEpoch.mean()
 
-        lossVal = inference(student, val_loader,
+        lossVal = inference(model, val_loader,
                             loss_function, "modele", epoch)
         scheduler.step()
         lossTotalVal.append(lossVal)
@@ -267,14 +267,14 @@ def fixmatch(epoch_num, weights_path='', augm=False):
 
             if trigger_times >= patience:
                 print('Early stopping!\nStart to test process.')
-                torch.save(student.state_dict(), './models/' +
+                torch.save(model.state_dict(), './models/' +
                            modelName + '/' + str(epoch) + '_Epoch')
                 break
         else:
             print('trigger times: 0')
             trigger_times = 0
             best_epoch = epoch
-        torch.save(student.state_dict(), './models/' +
+        torch.save(model.state_dict(), './models/' +
                    modelName + '/' + str(epoch) + '_Epoch')
         best_loss_val = lossVal
     return lossTotalTraining, lossTotalVal, BATCH_SIZE_TRAIN, BATCH_SIZE_VAL, lrs, lr, best_epoch
