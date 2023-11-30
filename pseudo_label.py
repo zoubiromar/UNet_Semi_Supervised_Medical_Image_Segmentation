@@ -26,17 +26,24 @@ def fixmatch(epoch_num, weights_path='', augm=False):
     print('~~~~~~~~  Starting the training... ~~~~~~')
     print('-' * 40)
     NUM_CLASSES = 4  # NUMBER OF CLASSES
+    MODEL_NAME = 'FixMatch'
 
     # DEFINE HYPERPARAMETERS (batch_size > 1)
     BATCH_SIZE_TRAIN = 2
     BATCH_SIZE_UNLABEL = 2
     BATCH_SIZE_VAL = 2
     ROOT_DIR = './Data_/'
+    PATIENCE = 3  # PATIENCE POUR LA VALIDATION
 
     lr = 0.03   # Learning Rate
     # use a modify root directory where labeled images had been add to to unlabeled data
 
     print(' Dataset: {} '.format(ROOT_DIR))
+
+    # Create directory to save models
+    directory = 'Results/Statistics/' + MODEL_NAME
+    if os.path.exists(directory) == False:
+        os.makedirs(directory)
 
     # DEFINE THE TRANSFORMATIONS TO DO AND THE VARIABLES FOR TRAINING AND VALIDATION
 
@@ -103,8 +110,7 @@ def fixmatch(epoch_num, weights_path='', augm=False):
     # INITIALIZE YOUR MODEL
 
     print("~~~~~~~~~~~ Creating the UNet model ~~~~~~~~~~")
-    modelName = 'FixMatch'
-    print(" Model Name: {}".format(modelName))
+    print(" Model Name: {}".format(MODEL_NAME))
 
     # CREATION OF YOUR MODEL
     model = ComplexUNet(NUM_CLASSES)
@@ -121,19 +127,17 @@ def fixmatch(epoch_num, weights_path='', augm=False):
           for p in model.parameters() if p.requires_grad)))
 
     # DEFINE YOUR OUTPUT COMPONENTS (e.g., SOFTMAX, LOSS FUNCTION, ETC)
+    # apply softmax on 1st dimension because it correspond to the four different classes
     soft_max = torch.nn.Softmax(dim=1)
-    ce_loss_train = torch.nn.CrossEntropyLoss()
+    ce_loss = torch.nn.CrossEntropyLoss()
     dice_loss_V2_train = DiceLossV2(n_classes=4)
-    # Only calculate when label is over 0.95 of confidence
-    ce_loss_unlabeled = torch.nn.CrossEntropyLoss()
 
     # PUT EVERYTHING IN GPU RESOURCES
     if torch.cuda.is_available():
         model.cuda()
         soft_max.cuda()
         dice_loss_V2_train.cuda()
-        ce_loss_train.cuda()
-        ce_loss_unlabeled.cuda()
+        ce_loss.cuda()
 
     # DEFINE YOUR OPTIMIZER
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
@@ -146,14 +150,8 @@ def fixmatch(epoch_num, weights_path='', augm=False):
     best_loss_val = float('inf')
     best_epoch = 0
     lrs = []
-    patience = 3
-
-    # Create directory to save models
-    directory = 'Results/Statistics/' + modelName
 
     print("~~~~~~~~~~~ Starting the training ~~~~~~~~~~")
-    if os.path.exists(directory) == False:
-        os.makedirs(directory)
 
     # START THE TRAINING
     num_batches_train = len(train_loader_full)
@@ -186,7 +184,7 @@ def fixmatch(epoch_num, weights_path='', augm=False):
 
             # COMPUTE THE LOSS for trained image
             # loss_train = ce_loss_train(s_pred, s_labels)
-            loss_train = loss_function(ce_loss_train, dice_loss_V2_train,
+            loss_train = loss_function(ce_loss, dice_loss_V2_train,
                                        0.4, s_pred, seg_one_hot, segmentation_classes)
 
             # start concistency (compare no transformed data to transformed data using the same model)
@@ -209,9 +207,9 @@ def fixmatch(epoch_num, weights_path='', augm=False):
                     model.train()
 
                     try:
-                        s_labels = torch.cat((s_labels, seg_one_hot))
+                        s_labels = torch.cat((s_labels, s_label))
                     except:
-                        s_labels = seg_one_hot
+                        s_labels = s_label
                     y_pred = model(images_unlabeled)
                     try:
                         s_pred = torch.cat((s_pred, soft_max(y_pred)))
@@ -219,7 +217,7 @@ def fixmatch(epoch_num, weights_path='', augm=False):
                         s_pred = soft_max(y_pred)
             # calculate loss
             if s_pred != None and s_labels != None:
-                loss_unlabel = ce_loss_unlabeled(s_pred, s_labels)
+                loss_unlabel = ce_loss(s_pred, s_labels)
             else:
                 loss_unlabel = 0
             # make a mix of losses
@@ -258,23 +256,23 @@ def fixmatch(epoch_num, weights_path='', augm=False):
         printProgressBar(num_batches_train, num_batches_train,
                          done="[Training] Epoch: {}, LossT: {:.4f}, LossV: {:.4f}".format(epoch, lossEpoch, lossVal))
 
-        if not os.path.exists('./models/' + modelName):
-            os.makedirs('./models/' + modelName)
+        if not os.path.exists('./models/' + MODEL_NAME):
+            os.makedirs('./models/' + MODEL_NAME)
 
         if lossVal > best_loss_val:
             trigger_times += 1
             print('trigger times:', trigger_times)
 
-            if trigger_times >= patience:
+            if trigger_times >= PATIENCE:
                 print('Early stopping!\nStart to test process.')
                 torch.save(model.state_dict(), './models/' +
-                           modelName + '/' + str(epoch) + '_Epoch')
+                           MODEL_NAME + '/' + str(epoch) + '_Epoch')
                 break
         else:
             print('trigger times: 0')
             trigger_times = 0
             best_epoch = epoch
         torch.save(model.state_dict(), './models/' +
-                   modelName + '/' + str(epoch) + '_Epoch')
+                   MODEL_NAME + '/' + str(epoch) + '_Epoch')
         best_loss_val = lossVal
     return lossTotalTraining, lossTotalVal, BATCH_SIZE_TRAIN, BATCH_SIZE_VAL, lrs, lr, best_epoch
