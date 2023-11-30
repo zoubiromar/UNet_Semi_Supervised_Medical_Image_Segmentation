@@ -25,17 +25,18 @@ def fixmatch(epoch_num, weights_path='', augm=False):
     print('-' * 40)
     print('~~~~~~~~  Starting the training... ~~~~~~')
     print('-' * 40)
+    NUM_CLASSES = 4  # NUMBER OF CLASSES
 
     # DEFINE HYPERPARAMETERS (batch_size > 1)
-    batch_size = 2
-    batch_size_unlabel = 2
-    batch_size_val = 2
+    BATCH_SIZE_TRAIN = 2
+    BATCH_SIZE_UNLABEL = 2
+    BATCH_SIZE_VAL = 2
+    ROOT_DIR = './Data_/'
+
     lr = 0.03   # Learning Rate
-
     # use a modify root directory where labeled images had been add to to unlabeled data
-    root_dir = './Data_/'
 
-    print(' Dataset: {} '.format(root_dir))
+    print(' Dataset: {} '.format(ROOT_DIR))
 
     # DEFINE THE TRANSFORMATIONS TO DO AND THE VARIABLES FOR TRAINING AND VALIDATION
 
@@ -48,66 +49,65 @@ def fixmatch(epoch_num, weights_path='', augm=False):
     ])
 
     train_set_full = medicalDataLoader.MedicalImageDataset('train',
-                                                           root_dir,
+                                                           ROOT_DIR,
                                                            transform=transform,
                                                            mask_transform=mask_transform,
                                                            augment=False,  # Set to True to enable data augmentation
                                                            equalize=False)
 
     train_loader_full = DataLoader(train_set_full,
-                                   batch_size=batch_size,
-                                   worker_init_fn=np.random.seed(0),
+                                   batch_size=BATCH_SIZE_TRAIN,
+                                   worker_init_fn=np.random.seed(),
                                    num_workers=0,
                                    shuffle=True)
 
     pseudo_label_set_full = medicalDataLoader.MedicalImageDataset('unlabeled',
-                                                                  root_dir,
+                                                                  ROOT_DIR,
                                                                   transform=transform,
                                                                   mask_transform=mask_transform,
                                                                   augment=False,  # Set to True to enable data augmentation
                                                                   equalize=False)
 
     pseudo_label_loader_full = DataLoader(pseudo_label_set_full,
-                                          batch_size=batch_size_unlabel,
+                                          batch_size=BATCH_SIZE_UNLABEL,
                                           worker_init_fn=np.random.seed(0),
                                           num_workers=0,
                                           shuffle=False)
 
     unlabel_set_full = medicalDataLoader.MedicalImageDataset('unlabeled',
-                                                             root_dir,
+                                                             ROOT_DIR,
                                                              transform=transform,
                                                              mask_transform=mask_transform,
                                                              augment=True,  # Set to True to enable data augmentation
                                                              equalize=False)
 
     unlabel_loader_full = DataLoader(unlabel_set_full,
-                                     batch_size=batch_size_unlabel,
+                                     batch_size=BATCH_SIZE_UNLABEL,
                                      worker_init_fn=np.random.seed(0),
                                      num_workers=0,
                                      shuffle=False)
 
     val_set = medicalDataLoader.MedicalImageDataset('val',
-                                                    root_dir,
+                                                    ROOT_DIR,
                                                     transform=transform,
                                                     mask_transform=mask_transform,
                                                     augment=True,
                                                     equalize=False)
 
     val_loader = DataLoader(val_set,
-                            batch_size=batch_size_val,
+                            batch_size=BATCH_SIZE_VAL,
                             worker_init_fn=np.random.seed(0),
                             num_workers=0,
                             shuffle=True)
 
     # INITIALIZE YOUR MODEL
-    num_classes = 4  # NUMBER OF CLASSES
 
     print("~~~~~~~~~~~ Creating the UNet model ~~~~~~~~~~")
     modelName = 'FixMatch'
     print(" Model Name: {}".format(modelName))
 
     # CREATION OF YOUR MODEL
-    student = ComplexUNet(num_classes)
+    student = ComplexUNet(NUM_CLASSES)
 
     student = student.to(device)  # Move the model to the device
 
@@ -176,7 +176,7 @@ def fixmatch(epoch_num, weights_path='', augm=False):
             # create labels on which we want to match on (same as trained model)
             segmentation_classes = getTargetSegmentation(labels)
             seg_one_hot = F.one_hot(
-                segmentation_classes, num_classes=num_classes).permute(0, 3, 1, 2).float()
+                segmentation_classes, num_classes=NUM_CLASSES).permute(0, 3, 1, 2).float()
             # s_labels = soft_max(labels)
 
             # the student prediction
@@ -277,4 +277,4 @@ def fixmatch(epoch_num, weights_path='', augm=False):
         torch.save(student.state_dict(), './models/' +
                    modelName + '/' + str(epoch) + '_Epoch')
         best_loss_val = lossVal
-    return lossTotalTraining, lossTotalVal, batch_size, batch_size_val, lrs, lr, best_epoch
+    return lossTotalTraining, lossTotalVal, BATCH_SIZE_TRAIN, BATCH_SIZE_VAL, lrs, lr, best_epoch
