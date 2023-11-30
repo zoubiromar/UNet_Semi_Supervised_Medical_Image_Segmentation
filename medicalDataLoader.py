@@ -128,13 +128,19 @@ class MedicalImageDataset(Dataset):
         return mask
 
     def augment(self, img, mask):
-        img, mask = self.apply_flip(img, mask, probability=0.5)
-        img, mask = self.apply_mirror(img, mask, probability=0.5)
-        img, mask = self.apply_rotation(img, mask, probability=0.5, max_angle=30)
-        img, mask = self.apply_translation(img, mask, probability=0.5, max_translation=10)
-        mask = self.apply_opening(mask, probability=0.5)
-        mask = self.apply_closing(mask, probability=0.5)
-
+        if random() > 0.5:
+            random_value = random()
+            match random_value:
+                case num if num < 0.2:
+                    img, mask = self.apply_flip(img, mask, probability=0.5)
+                case num if num < 0.4:
+                    img, mask = self.apply_rotation(img, mask, probability=0.5, max_angle=30)
+                case num if num < 0.6:
+                    img, mask = self.apply_translation(img, mask, probability=0.5, max_translation=10)
+                case num if num < 0.8:
+                    mask = self.apply_opening(mask, probability=0.5)
+                case num if num < 1:
+                    mask = self.apply_closing(mask, probability=0.5)
         return img, mask
 
     def __getitem__(self, index):
