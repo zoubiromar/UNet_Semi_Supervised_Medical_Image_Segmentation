@@ -1,24 +1,15 @@
 from __future__ import print_function, division
 import os
-import torch
-import pandas as pd
-from skimage import io, transform
-import numpy as np
-from torch.utils.data import Dataset, DataLoader
-from torchvision import transforms, utils
-from PIL import Image, ImageOps
+from torch.utils.data import Dataset
+from PIL import Image, ImageOps, ImageFilter
 from random import random, randint
-
-# Ignore warnings
 import warnings
-
-import pdb
 
 warnings.filterwarnings("ignore")
 
 
 def make_dataset(root, mode):
-    assert mode in ['train','val', 'test', 'unlabeled']
+    assert mode in ['train', 'val', 'test', 'unlabeled']
     items = []
 
     if mode == 'train':
@@ -79,7 +70,7 @@ def make_dataset(root, mode):
 class MedicalImageDataset(Dataset):
     """Face Landmarks dataset."""
 
-    def __init__(self, mode, root_dir, transform=None, mask_transform=None, augment=False, equalize=False):
+    def __init__(self, mode, root_dir, transform=None, mask_transform=None, augment=True, equalize=False):
         """
         Args:
             root_dir (string): Directory with all the images.
@@ -97,17 +88,53 @@ class MedicalImageDataset(Dataset):
     def __len__(self):
         return len(self.imgs)
 
-    def augment(self, img, mask):
-        if random() > 0.5:
+    def apply_flip(self, img, mask, probability):
+        if random() > probability:
             img = ImageOps.flip(img)
             mask = ImageOps.flip(mask)
-        if random() > 0.5:
+        return img, mask
+
+    def apply_mirror(self, img, mask, probability):
+        if random() > probability:
             img = ImageOps.mirror(img)
             mask = ImageOps.mirror(mask)
-        if random() > 0.5:
-            angle = random() * 60 - 30
+        return img, mask
+
+    def apply_rotation(self, img, mask, probability, max_angle=30):
+        if random() > probability:
+            angle = random() * 2 * max_angle - max_angle
             img = img.rotate(angle)
             mask = mask.rotate(angle)
+        return img, mask
+
+    def apply_translation(self, img, mask, probability, max_translation=10):
+        if random() > probability:
+            trans_x = randint(-max_translation, max_translation)
+            trans_y = randint(-max_translation, max_translation)
+            img = img.transform(img.size, Image.AFFINE, (1, 0, trans_x, 0, 1, trans_y))
+            mask = mask.transform(mask.size, Image.AFFINE, (1, 0, trans_x, 0, 1, trans_y))
+        return img, mask
+
+    def apply_opening(self, mask, probability):
+        if random() > probability:
+            mask = mask.filter(ImageFilter.MinFilter(3))
+            mask = mask.filter(ImageFilter.MaxFilter(3))
+        return mask
+
+    def apply_closing(self, mask, probability):
+        if random() > probability:
+            mask = mask.filter(ImageFilter.MaxFilter(3))
+            mask = mask.filter(ImageFilter.MinFilter(3))
+        return mask
+
+    def augment(self, img, mask):
+        img, mask = self.apply_flip(img, mask, probability=0.5)
+        img, mask = self.apply_mirror(img, mask, probability=0.5)
+        img, mask = self.apply_rotation(img, mask, probability=0.5, max_angle=30)
+        img, mask = self.apply_translation(img, mask, probability=0.5, max_translation=10)
+        mask = self.apply_opening(mask, probability=0.5)
+        mask = self.apply_closing(mask, probability=0.5)
+
         return img, mask
 
     def __getitem__(self, index):
