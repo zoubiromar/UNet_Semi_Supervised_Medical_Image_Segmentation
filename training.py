@@ -24,8 +24,8 @@ def runTraining(epoch_num, weights_path='', augm=False):
     print('-' * 40)
 
     # DEFINE HYPERPARAMETERS (batch_size > 1)
-    batch_size = 16
-    batch_size_val = 16
+    batch_size = 2
+    batch_size_val = 2
     lr = 0.001   # Learning Rate
     epoch = epoch_num  # Number of epochs
 
@@ -76,7 +76,7 @@ def runTraining(epoch_num, weights_path='', augm=False):
     print(" Model Name: {}".format(modelName))
 
     # CREATION OF YOUR MODEL
-    model = UNet(num_classes)
+    model = ComplexUNet(num_classes)
 
     # net = UNet(num_classes)
     model = model.to(device)  # Move the model to the device

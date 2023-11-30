@@ -3,14 +3,14 @@ import os
 from training import runTraining
 from pseudo_label import fixmatch
 
-lossTotalTraining, lossTotalVal, batch_size, batch_size_val, lrs, lr, best_epoch = runTraining(
-    100)
+# lossTotalTraining, lossTotalVal, batch_size, batch_size_val, lrs, lr, best_epoch = runTraining(
+#     100)
 
-_model_path = os.path.join("models", "ComplexUNet",
-                           "_".join([str(best_epoch), "Epoch"]))
+# _model_path = os.path.join("models", "ComplexUNet",
+#                            "_".join([str(best_epoch), "Epoch"]))
 
 lossTotalTraining, lossTotalVal, batch_size, batch_size_val, lrs, lr, best_epoch = fixmatch(
-    100, _model_path)
+    400)
 
 
 def get_Training_learning(training_loss, validation_loss, learning_rate, all_learning_rate,

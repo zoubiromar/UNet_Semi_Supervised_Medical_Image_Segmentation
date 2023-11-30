@@ -27,10 +27,10 @@ def fixmatch(epoch_num, weights_path='', augm=False):
     print('-' * 40)
 
     # DEFINE HYPERPARAMETERS (batch_size > 1)
-    batch_size = 16
-    batch_size_unlabel = 16
-    batch_size_val = 16
-    lr = 0.001   # Learning Rate
+    batch_size = 2
+    batch_size_unlabel = 2
+    batch_size_val = 2
+    lr = 0.03   # Learning Rate
 
     # use a modify root directory where labeled images had been add to to unlabeled data
     root_dir = './Data_/'
@@ -71,7 +71,7 @@ def fixmatch(epoch_num, weights_path='', augm=False):
                                           batch_size=batch_size_unlabel,
                                           worker_init_fn=np.random.seed(0),
                                           num_workers=0,
-                                          shuffle=True)
+                                          shuffle=False)
 
     unlabel_set_full = medicalDataLoader.MedicalImageDataset('unlabeled',
                                                              root_dir,
@@ -84,7 +84,7 @@ def fixmatch(epoch_num, weights_path='', augm=False):
                                      batch_size=batch_size_unlabel,
                                      worker_init_fn=np.random.seed(0),
                                      num_workers=0,
-                                     shuffle=True)
+                                     shuffle=False)
 
     val_set = medicalDataLoader.MedicalImageDataset('val',
                                                     root_dir,
@@ -107,15 +107,13 @@ def fixmatch(epoch_num, weights_path='', augm=False):
     print(" Model Name: {}".format(modelName))
 
     # CREATION OF YOUR MODEL
-    student = UNet(num_classes)
-    teacher = UNet(num_classes)
+    student = ComplexUNet(num_classes)
 
     student = student.to(device)  # Move the model to the device
-    teacher = teacher.to(device)  # Move the model to the device
 
     # Load the weights from the previously trained model
     if weights_path != '':
-        teacher.load_state_dict(torch.load(weights_path))
+        student.load_state_dict(torch.load(weights_path))
         print(" Model loaded: {}".format(weights_path))
 
     # Logging parameters informations
@@ -123,16 +121,17 @@ def fixmatch(epoch_num, weights_path='', augm=False):
           for p in student.parameters() if p.requires_grad)))
 
     # DEFINE YOUR OUTPUT COMPONENTS (e.g., SOFTMAX, LOSS FUNCTION, ETC)
-    soft_max = torch.nn.Softmax(dim=-1)
+    soft_max = torch.nn.Softmax(dim=1)
     ce_loss_train = torch.nn.CrossEntropyLoss()
+    dice_loss_V2_train = DiceLossV2(n_classes=4)
     # Only calculate when label is over 0.95 of confidence
-    ce_loss_unlabeled = torch.nn.CrossEntropyLoss(label_smoothing=0.95)
+    ce_loss_unlabeled = torch.nn.CrossEntropyLoss()
 
     # PUT EVERYTHING IN GPU RESOURCES
     if torch.cuda.is_available():
         student.cuda()
-        teacher.cuda()
         soft_max.cuda()
+        dice_loss_V2_train.cuda()
         ce_loss_train.cuda()
         ce_loss_unlabeled.cuda()
 
@@ -161,7 +160,6 @@ def fixmatch(epoch_num, weights_path='', augm=False):
 
     # FOR EACH EPOCH
     for epoch in range(epoch_num):
-        student.train()
         lossEpoch = []
         lrEpoch = []
 
@@ -170,60 +168,74 @@ def fixmatch(epoch_num, weights_path='', augm=False):
             student.train()
             student.zero_grad()
             optimizer.zero_grad()
-            images_train, _, _ = data_train
+            images_train, labels, _ = data_train
+
+            images_train = to_var(images_train)
+            labels = to_var(labels)
 
             # create labels on which we want to match on (same as trained model)
-            with torch.no_grad():
-                labels = teacher(images_train)
-            s_labels = soft_max(labels)
+            segmentation_classes = getTargetSegmentation(labels)
+            seg_one_hot = F.one_hot(
+                segmentation_classes, num_classes=num_classes).permute(0, 3, 1, 2).float()
+            # s_labels = soft_max(labels)
 
             # the student prediction
             y_pred = student(images_train)
+
             s_pred = soft_max(y_pred)
 
             # COMPUTE THE LOSS for trained image
-            loss_train = ce_loss_train(s_pred, s_labels)
+            # loss_train = ce_loss_train(s_pred, s_labels)
+            loss_train = loss_function(ce_loss_train, dice_loss_V2_train,
+                                       0.4, s_pred, seg_one_hot, segmentation_classes)
 
             # start concistency (compare no transformed data to transformed data using the same model)
             loss_unlabel = 0
             s_labels = None
             s_pred = None
+            student.zero_grad()
+            optimizer.zero_grad()
             # delete train_loader_full from iterration (added for testing for memory issues)
             for (data_pseudo_label, data_unlabeled, _) in zip(pseudo_label_loader_full, unlabel_loader_full, train_loader_full):
                 images_pseudo_label, _, _ = data_pseudo_label
                 images_unlabeled, _, _ = data_unlabeled
                 student.eval()
+
                 with torch.no_grad():
                     pseudo_labels = student(images_pseudo_label)
-                try:
-                    s_labels = torch.cat((s_labels, soft_max(pseudo_labels)))
-                except:
-                    s_labels = soft_max(pseudo_labels)
+                s_label = soft_max(pseudo_labels)
                 # -- The CNN makes its predictions (forward pass)
-                student.train()
-                y_pred = student(images_unlabeled)
-                try:
-                    s_pred = torch.cat((s_pred, soft_max(y_pred)))
-                except:
-                    s_pred = soft_max(y_pred)
+                if (torch.min(torch.max(torch.mean(torch.mean(s_label, dim=-1), dim=-1), dim=-1).values) > 0.95):
+                    student.train()
+
+                    try:
+                        s_labels = torch.cat((s_labels, seg_one_hot))
+                    except:
+                        s_labels = seg_one_hot
+                    y_pred = student(images_unlabeled)
+                    try:
+                        s_pred = torch.cat((s_pred, soft_max(y_pred)))
+                    except:
+                        s_pred = soft_max(y_pred)
             # calculate loss
-            loss_unlabel = ce_loss_unlabeled(s_pred, s_labels)
+            if s_pred != None and s_labels != None:
+                loss_unlabel = ce_loss_unlabeled(s_pred, s_labels)
+            else:
+                loss_unlabel = 0
             # make a mix of losses
-            loss = loss_train + loss_unlabel * 0.3
+            loss = loss_train + loss_unlabel
 
             # DO THE STEPS FOR BACKPROP (two things to be done in pytorch)
             loss.backward()
             optimizer.step()
 
             # Update LR
-            scheduler.step()
             lr_step = optimizer.state_dict()["param_groups"][0]["lr"]
             lrEpoch.append(lr_step)
 
             # THIS IS JUST TO VISUALIZE THE TRAINING
             lossEpoch.append(loss.cpu().data.numpy())
 
-            # scheduler.step()
             printProgressBar(nth_batch_train + 1, num_batches_train,
                              prefix="[Semi-Supervised] Epoch: {} ".format(
                                  epoch),
