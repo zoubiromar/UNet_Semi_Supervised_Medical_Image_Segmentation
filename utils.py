@@ -1,4 +1,3 @@
-from scipy import ndimage
 import numpy as np
 import torch
 import torch.nn as nn
@@ -6,17 +5,15 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 import torchvision
 import os
-import skimage.transform as skiTransf
 from progressBar import printProgressBar
-import scipy.io as sio
 import pdb
-import time
 from os.path import isfile, join
-import statistics
-from PIL import Image
-from medpy.metric.binary import dc, hd, asd, assd
-import scipy.spatial
+from medpy.metric.binary import dc
+from PIL import ImageOps, Image
+from torchvision import transforms
+import tensorflow
 
+from random import random
 # from scipy.spatial.distance import directed_hausdorff
 
 
@@ -118,6 +115,42 @@ def inference(net, img_batch, loss_function, modelName, epoch):
     losses = np.asarray(losses)
 
     return losses.mean()
+
+
+def augment_images(imgs, masks):
+    _imgs = torch.empty(0)
+    _masks = torch.empty(0)
+    transform = transforms.Compose([
+        transforms.ToTensor()
+    ])
+
+    imgs = imgs.squeeze(1).data
+
+    masks = masks.view(
+        imgs.shape[0], 1, 256, 256).data / 3.0
+    masks = masks.squeeze(1).data
+    for (img, mask) in zip(imgs, masks):
+        img = Image.fromarray(img.numpy())
+        mask = Image.fromarray(mask.numpy())
+        if random() > 0.5:
+            mask = ImageOps.flip(mask)
+            img = ImageOps.flip(img)
+        if random() > 0.5:
+            mask = ImageOps.mirror(mask)
+            img = ImageOps.mirror(img)
+        if random() > 0.5:
+            angle = random() * 60 - 30
+            mask = mask.rotate(angle)
+            img = img.rotate(angle)
+        _imgs = torch.cat((_imgs, transform(img)), dim=0)
+        _masks = torch.cat((_masks, transform(mask)), dim=0)
+
+    return _imgs.unsqueeze(1), _masks.unsqueeze(1)
+
+
+def load_images(imgs_paths):
+    for img_path in imgs_paths:
+        img = Image.open(img_path)
 
 
 class MaskToTensor(object):

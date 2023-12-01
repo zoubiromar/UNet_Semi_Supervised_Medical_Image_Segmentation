@@ -60,7 +60,7 @@ def fixmatch(epoch_num, weights_path='', augm=False):
                                                            ROOT_DIR,
                                                            transform=transform,
                                                            mask_transform=mask_transform,
-                                                           augment=False,  # Set to True to enable data augmentation
+                                                           augment=True,  # Set to True to enable data augmentation
                                                            equalize=False)
 
     train_loader_full = DataLoader(train_set_full,
@@ -69,31 +69,18 @@ def fixmatch(epoch_num, weights_path='', augm=False):
                                    num_workers=0,
                                    shuffle=True)
 
-    pseudo_label_set_full = medicalDataLoader.MedicalImageDataset('unlabeled',
-                                                                  ROOT_DIR,
-                                                                  transform=transform,
-                                                                  mask_transform=mask_transform,
-                                                                  augment=False,  # Set to True to enable data augmentation
-                                                                  equalize=False)
+    unlabeled_set_full = medicalDataLoader.MedicalImageDataset('unlabeled',
+                                                               ROOT_DIR,
+                                                               transform=transform,
+                                                               mask_transform=mask_transform,
+                                                               augment=False,  # Set to True to enable data augmentation
+                                                               equalize=False)
 
-    pseudo_label_loader_full = DataLoader(pseudo_label_set_full,
-                                          batch_size=BATCH_SIZE_UNLABEL,
-                                          worker_init_fn=np.random.seed(0),
-                                          num_workers=0,
-                                          shuffle=False)
-
-    unlabel_set_full = medicalDataLoader.MedicalImageDataset('unlabeled',
-                                                             ROOT_DIR,
-                                                             transform=transform,
-                                                             mask_transform=mask_transform,
-                                                             augment=True,  # Set to True to enable data augmentation
-                                                             equalize=False)
-
-    unlabel_loader_full = DataLoader(unlabel_set_full,
-                                     batch_size=BATCH_SIZE_UNLABEL,
-                                     worker_init_fn=np.random.seed(0),
-                                     num_workers=0,
-                                     shuffle=False)
+    unlabeled_loader_full = DataLoader(unlabeled_set_full,
+                                       batch_size=BATCH_SIZE_UNLABEL,
+                                       worker_init_fn=np.random.seed(0),
+                                       num_workers=0,
+                                       shuffle=True)
 
     val_set = medicalDataLoader.MedicalImageDataset('val',
                                                     ROOT_DIR,
@@ -190,47 +177,41 @@ def fixmatch(epoch_num, weights_path='', augm=False):
 
             # start concistency (compare no transformed data to transformed data using the same model)
             loss_unlabel = 0
-            s_labels = None
             s_pred = None
             loss_unlabel = 0
             iteration = 0
             # delete train_loader_full from iterration (added for testing for memory issues)
-            for (data_pseudo_label, data_unlabeled) in zip(pseudo_label_loader_full, unlabel_loader_full):
-                images_pseudo_label, _, _ = data_pseudo_label
+            for nth_unlabeled, data_unlabeled in enumerate(unlabeled_loader_full):
+                # if (nth_unlabeled > 4):
+                #     break
                 images_unlabeled, _, _ = data_unlabeled
                 model.eval()
-
+                pseudo_images = images_unlabeled.clone()
                 with torch.no_grad():
-                    pseudo_labels = model(images_pseudo_label)
-                s_label = soft_max(pseudo_labels)
-                # -- The CNN makes its predictions (forward pass)
-                _pourcentage_per_classes = torch.mean(
-                    torch.mean(s_label, dim=-1), dim=-1)
-                # if the model find an image that have more than threshold accuracy on a class add it to training set
-                if (torch.min(torch.max(_pourcentage_per_classes, dim=-1).values) > THRESHOLD):
+                    pseudo_label = model(pseudo_images)
+                s_pseudo_label = soft_max(pseudo_label)
 
-                    iteration += 1
+                # if the model find an image that have more than threshold accuracy on a class add it to training set
+                if (torch.max(s_pseudo_label) > THRESHOLD):
                     model.train()
                     model.zero_grad()
                     optimizer.zero_grad()
-                    s_label = torch.round(s_label)
 
-                    # try:
-                    #     s_labels = torch.cat((s_labels, s_label))
-                    # except:
-                    #     s_labels = s_label
+                    s_pseudo_label *= torch.gt(s_pseudo_label, THRESHOLD)
+                    images_unlabeled, s_pseudo_label = augment_images(
+                        images_unlabeled, torch.argmax(s_pseudo_label, dim=1, keepdim=True))
+
+                    segmentation_classes = getTargetSegmentation(
+                        s_pseudo_label)
+                    seg_one_hot = F.one_hot(
+                        segmentation_classes, num_classes=NUM_CLASSES).permute(0, 3, 1, 2).float()
+
                     y_pred = model(images_unlabeled)
-                    # try:
-                    #     s_pred = torch.cat((s_pred, soft_max(y_pred)))
-                    # except:
                     s_pred = soft_max(y_pred)
-                    loss_unlabel += ce_loss(s_pred, s_label)
-                    # loss_function(ce_loss, dice_loss_V2_train,
-                    #                               0.4, s_pred, seg_one_hot, s_label)
-            # calculate loss
-            # if s_pred != None and s_labels != None:
-            # else:
-            # make a mix of losses
+
+                    loss_unlabel += ce_loss(s_pred, seg_one_hot)
+                    iteration += 1
+
             if iteration != 0:
                 loss_unlabel = loss_unlabel/iteration
             loss = loss_train + loss_unlabel

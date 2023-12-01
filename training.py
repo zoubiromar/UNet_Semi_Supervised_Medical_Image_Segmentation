@@ -47,7 +47,7 @@ def runTraining(epoch_num, weights_path='', augm=False):
                                                            root_dir,
                                                            transform=transform,
                                                            mask_transform=mask_transform,
-                                                           augment=augm,  # Set to True to enable data augmentation
+                                                           augment=True,  # Set to True to enable data augmentation
                                                            equalize=False)
 
     train_loader_full = DataLoader(train_set_full,
@@ -60,6 +60,7 @@ def runTraining(epoch_num, weights_path='', augm=False):
                                                     root_dir,
                                                     transform=transform,
                                                     mask_transform=mask_transform,
+                                                    augment=True,
                                                     equalize=False)
 
     val_loader = DataLoader(val_set,
