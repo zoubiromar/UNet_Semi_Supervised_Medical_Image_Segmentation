@@ -73,11 +73,11 @@ def runTraining(epoch_num, weights_path='', augm=False):
     num_classes = 4  # NUMBER OF CLASSES
 
     print("~~~~~~~~~~~ Creating the UNet model ~~~~~~~~~~")
-    modelName = 'ComplexUNet'
+    modelName = 'UNet'
     print(" Model Name: {}".format(modelName))
 
     # CREATION OF YOUR MODEL
-    model = ComplexUNet(num_classes)
+    model = UNet(num_classes)
 
     # net = UNet(num_classes)
     model = model.to(device)  # Move the model to the device

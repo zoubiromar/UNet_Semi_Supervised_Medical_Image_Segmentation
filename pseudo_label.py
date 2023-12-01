@@ -101,7 +101,7 @@ def fixmatch(epoch_num, weights_path='', augm=False):
     print(" Model Name: {}".format(MODEL_NAME))
 
     # CREATION OF YOUR MODEL
-    model = ComplexUNet(NUM_CLASSES)
+    model = UNet(NUM_CLASSES)
 
     model = model.to(device)  # Move the model to the device
 
@@ -182,8 +182,8 @@ def fixmatch(epoch_num, weights_path='', augm=False):
             iteration = 0
             # delete train_loader_full from iterration (added for testing for memory issues)
             for nth_unlabeled, data_unlabeled in enumerate(unlabeled_loader_full):
-                # if (nth_unlabeled > 4):
-                #     break
+                if (nth_unlabeled > 4):
+                    break
                 images_unlabeled, _, _ = data_unlabeled
                 model.eval()
                 pseudo_images = images_unlabeled.clone()
@@ -265,7 +265,7 @@ def fixmatch(epoch_num, weights_path='', augm=False):
             print('trigger times: 0')
             trigger_times = 0
             best_epoch = epoch
+            best_loss_val = lossVal
         torch.save(model.state_dict(), './models/' +
                    MODEL_NAME + '/' + str(epoch) + '_Epoch')
-        best_loss_val = lossVal
     return lossTotalTraining, lossTotalVal, BATCH_SIZE_TRAIN, BATCH_SIZE_VAL, lrs, lr, best_epoch

@@ -2,12 +2,12 @@ import matplotlib.pyplot as plt
 import os
 from training import runTraining
 from pseudo_label import fixmatch
-
+best_epoch = 70
 # lossTotalTraining, lossTotalVal, batch_size, batch_size_val, lrs, lr, best_epoch = runTraining(
 #     100)
 # print(best_epoch)
-_model_path = os.path.join("models", "ComplexUNet",
-                           "_".join([str(46), "Epoch"]))
+_model_path = os.path.join("models", "UNet",
+                           "_".join([str(best_epoch), "Epoch"]))
 
 lossTotalTraining, lossTotalVal, batch_size, batch_size_val, lrs, lr, best_epoch = fixmatch(
     400, _model_path)
