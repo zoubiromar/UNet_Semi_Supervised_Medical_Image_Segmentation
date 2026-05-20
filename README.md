@@ -1,19 +1,44 @@
-# UNet_Semi_Supervised_Medical_Image_Segmentation
+# Semi-Supervised U-Net for Cardiac MRI Segmentation
 
-## Overview
-This project, part of the ACDC challenge, focuses on developing a high-performance model to segment 2D heart images into myocardium, left ventricle, and right ventricle.
+Segmenting cardiac MRI images into three anatomical regions (myocardium, left ventricle, right ventricle) using a U-Net trained with semi-supervised learning to exploit unlabeled data.
 
-## Methodology
-The project employed semi-supervised learning with a Unet model. Key methodologies included early stopping with a patience of 10 iterations and the use of the FixMatch algorithm for semi-supervised learning. Data augmentation techniques like flips, rotations, translations, openings, and closings were applied.
+## Result
+
+**4th place** out of 10 competing teams in the ACDC cardiac MRI segmentation challenge. Scoring was based on the Dice coefficient, Hausdorff distance (HDD), and average surface distance (ASD) on a held-out test set.
+
+## Problem
+
+Labeled medical imaging data is expensive. Annotating MRI slices requires clinical expertise and time. The ACDC challenge gave each team a small labeled training set alongside a much larger pool of unlabeled images. The question we were exploring: can the unlabeled images meaningfully improve segmentation quality, and if so, how?
+
+## Approach
+
+- **Architecture:** U-Net (the standard biomedical-segmentation backbone, encoder-decoder with skip connections).
+- **Semi-supervised learning:** FixMatch algorithm. Generate pseudo-labels for the unlabeled images using weakly augmented inputs; train on those pseudo-labels with strongly augmented inputs, gated by a confidence threshold.
+- **Data augmentation:** flips, rotations, translations, morphological openings, morphological closings.
+- **Training control:** early stopping with patience of 10 iterations to prevent overfitting.
 
 ## Dataset
-The training dataset included 204 labeled and 1004 unlabeled images, with a separate validation set of 74 images. Test data was reserved for final evaluation by the instructor.
 
-## Competition
-The project was a competition among ten teams, each comprising 4-5 members. Teams were provided with a base code implementing the Unet model, and performance metrics included the Dice coefficient, Hausdorff distance (HDD), and average surface distance (ASD). Our team was ranked 4th.
+- 204 labeled training images
+- 1,004 unlabeled training images
+- 74 validation images
+- Held-out test set graded by the instructor
 
-## Metrics & Results
-The project emphasized exploring strategies, optimizing parameters, and understanding model performance factors. Our team achieved fourth place, demonstrating the effectiveness of our chosen methodologies and model optimizations.
+## Stack
 
-## Conclusion
-The project highlights the significance of data augmentation, semi-supervised learning, and careful parameter optimization in medical image segmentation using deep learning.
+PyTorch, U-Net, FixMatch.
+
+## Files
+
+- `mainSegmentationChallenge.ipynb`: main training and evaluation notebook
+- `UNet_Base.py`: baseline U-Net implementation
+- `multi_UNet_complex.py`: extended U-Net variant
+- `model_Gagant.py`: our final submitted model
+- `pseudo_label.py`: FixMatch pseudo-labeling logic
+- `training.py`: training loop
+- `medicalDataLoader.py`: dataset loading + augmentation
+- `Segmentation_Medicale_d_un_Coeur.pdf`: full project report
+
+## Context
+
+ETS Montréal Master of Engineering coursework. Team competition; my team ranked 4th.
